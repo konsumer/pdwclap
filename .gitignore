@@ -1,0 +1,16 @@
+# Build output. `make build` puts the plugin in the project root on purpose
+# (Pd finds an external in the patch's own directory, so patches opened from
+# this checkout need no -path), and everything else lands in build/.
+/wclap~.pd_darwin
+/wclap~.pd_linux
+/wclap~.dll
+/wclap~.pd_darwin.dSYM
+/build/
+/build-*/
+
+# Bundled test plugins (built by `make test-plugin`, needs wasi-sdk) and the
+# CLAP headers that script may cache.
+/tests/plugin/build/
+/tests/plugin/vendor/
+
+.DS_Store
