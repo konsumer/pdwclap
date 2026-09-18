@@ -39,10 +39,16 @@ endif()
 # --- Pd headers -------------------------------------------------------------
 # Only m_pd.h (and a couple of neighbours) are needed to compile an external;
 # they're in the Pd app bundle on macOS and in pd-dev/pd packages on Linux.
-# Failing that, pull the headers out of a Pd source release — the external
-# doesn't link against Pd at all, it resolves Pd's symbols when Pd loads it.
+# Failing that, pull the headers out of a Pd source release — on the unices
+# the external doesn't link against Pd at all, it resolves Pd's symbols when
+# Pd loads it.
+#
+# Windows has no equivalent of that: MSVC wants the imports at link time, so
+# the Windows build needs pd.lib from a Pd install as well, and takes both
+# from Pd's binary distribution (see below).
 
 set(PD_INCLUDE_DIR "" CACHE PATH "Directory containing Pd's m_pd.h")
+set(PD_LIB "" CACHE FILEPATH "pd.lib to link against (Windows only)")
 
 if(NOT PD_INCLUDE_DIR)
   file(GLOB pd_apps /Applications/Pd*.app)
@@ -60,6 +66,27 @@ if(NOT PD_INCLUDE_DIR)
       break()
     endif()
   endforeach()
+endif()
+if(WIN32 AND (NOT PD_INCLUDE_DIR OR NOT PD_LIB))
+  # Pd's Windows distribution carries the headers and pd.lib together, so
+  # take both from one download — and from the same release pd.lib's export
+  # list comes from.
+  set(pd_windows_dir ${CMAKE_BINARY_DIR}/pd-windows)
+  file(GLOB pd_windows_roots ${pd_windows_dir}/*)
+  if(NOT pd_windows_roots)
+    message(STATUS "No Pd install found — downloading Pd's Windows distribution for m_pd.h and pd.lib")
+    file(DOWNLOAD https://msp.ucsd.edu/Software/pd-0.56-5.msw.zip
+        ${CMAKE_BINARY_DIR}/pd-msw.zip SHOW_PROGRESS)
+    file(ARCHIVE_EXTRACT INPUT ${CMAKE_BINARY_DIR}/pd-msw.zip DESTINATION ${pd_windows_dir})
+    file(GLOB pd_windows_roots ${pd_windows_dir}/*)
+  endif()
+  list(GET pd_windows_roots 0 pd_windows_root)
+  if(NOT PD_INCLUDE_DIR)
+    set(PD_INCLUDE_DIR ${pd_windows_root}/src)
+  endif()
+  if(NOT PD_LIB)
+    set(PD_LIB ${pd_windows_root}/bin/pd.lib)
+  endif()
 endif()
 if(NOT PD_INCLUDE_DIR)
   set(pd_headers ${CMAKE_BINARY_DIR}/pd-headers)
@@ -128,8 +155,13 @@ if(APPLE)
 endif()
 if(WIN32)
   target_compile_definitions(wclap PRIVATE WIN32_LEAN_AND_MEAN)
+  # Windows imports Pd's symbols through the import library instead, and
+  # resolves them when Pd loads the external — nothing is left unresolved.
+  if(NOT PD_LIB)
+    message(FATAL_ERROR "Windows builds link Pd through its import library — set -DPD_LIB=<path to pd.lib>")
+  endif()
+  target_link_libraries(wclap PRIVATE "${PD_LIB}")
   if(MSVC)
-    target_link_options(wclap PRIVATE /FORCE:UNRESOLVED)
     # The host core's event rings are stdatomic.h, which MSVC only has in
     # its C11 mode, and only turns on with this switch — otherwise
     # vcruntime_c11_stdatomic.h stops the build with "C atomic support is

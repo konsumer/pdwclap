@@ -802,7 +802,16 @@ static void wclap_tilde_free(t_wclap_tilde* x) {
   pthread_mutex_destroy(&x->lock);
 }
 
-void wclap_tilde_setup(void) {
+// Pd looks the setup function up by name once it has loaded the external,
+// which the unices do for every non-static symbol but MSVC only does for
+// what is explicitly marked for export.
+#ifdef _MSC_VER
+#define WCLAP_TILDE_SETUP __declspec(dllexport)
+#else
+#define WCLAP_TILDE_SETUP
+#endif
+
+WCLAP_TILDE_SETUP void wclap_tilde_setup(void) {
   wclap_tilde_class = class_new(gensym("wclap~"), (t_newmethod)wclap_tilde_new, (t_method)wclap_tilde_free,
                                 sizeof(t_wclap_tilde), CLASS_DEFAULT, A_GIMME, 0);
 

@@ -91,6 +91,45 @@ jobs:
         run: |
           dll=$(find . -name 'wclap~.dll' -not -path './build/_deps/*' -print -quit)
           bash ci/package.sh windows-x86_64 "$dll" "$(dirname "$dll")/wasmtime.dll"
+      - name: Smoke-test the packaged external
+        shell: pwsh
+        # Runs what actually ships: the zip, unzipped, under a Pd from the
+        # same distribution the build took its import library from. The patch
+        # loads an example plugin and asks it for its params — which only
+        # comes back if the external and wasmtime.dll both loaded — then
+        # quits by itself.
+        run: |
+          $pd = (Get-ChildItem build/pd-windows -Directory | Select-Object -First 1).FullName
+          New-Item -ItemType Directory -Force -Path smoke | Out-Null
+          Expand-Archive -Path dist/*.zip -DestinationPath smoke
+          Set-Content -Path smoke/smoke.pd -Value @(
+            '#N canvas 0 0 450 300 12;',
+            '#X obj 25 25 wclap~;',
+            '#X msg 25 90 load examples/juno1.wclap.wasm;',
+            '#X obj 25 170 print wclap;',
+            '#X obj 25 60 loadbang;',
+            '#X obj 180 60 delay 2500;',
+            '#X msg 25 130 params;',
+            '#X obj 320 60 delay 5000;',
+            '#X msg 320 130 \; pd quit;',
+            '#X connect 3 0 1 0;',
+            '#X connect 3 0 4 0;',
+            '#X connect 3 0 6 0;',
+            '#X connect 4 0 5 0;',
+            '#X connect 5 0 0 0;',
+            '#X connect 6 0 7 0;',
+            '#X connect 1 0 0 0;',
+            '#X connect 0 2 2 0;'
+          )
+          $p = Start-Process -FilePath "$pd\bin\pd.com" -WorkingDirectory "$PWD\smoke" `
+            -ArgumentList '-nogui', '-noaudio', '-stderr', '-open', 'smoke.pd' `
+            -RedirectStandardOutput "$PWD\smoke\out.log" -RedirectStandardError "$PWD\smoke\err.log" -PassThru
+          $p | Wait-Process -Timeout 60 -ErrorAction SilentlyContinue
+          if (-not $p.HasExited) { $p | Stop-Process -Force; throw "Pd did not quit on its own" }
+          Get-Content "$PWD\smoke\out.log", "$PWD\smoke\err.log"
+          if (-not (Select-String -Path "$PWD\smoke\out.log", "$PWD\smoke\err.log" -Pattern 'paraminfo 0 ' -Quiet)) {
+            throw "the packaged external did not load its plugin in Pd"
+          }
       - uses: actions/upload-artifact@v4
         with:
           name: windows-x86_64
