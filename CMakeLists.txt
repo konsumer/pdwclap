@@ -131,8 +131,11 @@ if(WIN32)
   if(MSVC)
     target_link_options(wclap PRIVATE /FORCE:UNRESOLVED)
     # The host core's event rings are stdatomic.h, which MSVC only has in
-    # its C11 mode (the default is pre-C11 MSVC C).
+    # its C11 mode, and only turns on with this switch — otherwise
+    # vcruntime_c11_stdatomic.h stops the build with "C atomic support is
+    # not enabled".
     set_property(TARGET wclap PROPERTY C_STANDARD 11)
+    target_compile_options(wclap PRIVATE /experimental:c11atomics)
   endif()
 endif()
 
