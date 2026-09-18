@@ -152,4 +152,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.event_name == 'release' && github.ref_name || inputs.tag }}
-        run: gh release upload "$TAG" dist/*.zip --clobber
+        # No checkout in this job, so gh has no remote to infer the repo from.
+        run: gh release upload "$TAG" dist/*.zip --repo "$GITHUB_REPOSITORY" --clobber
