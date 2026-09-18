@@ -15,7 +15,10 @@ external=${2:?usage: package.sh <platform-suffix> <external> [extra-file ...]}
 shift 2
 
 version=${VERSION:-$(git rev-parse --short HEAD)}
-name="wclap~-${version}-${platform}"
+# Named after the project, not the external: release assets can't carry the
+# ~ that wclap~'s own files need (GitHub rewrites it to a .), and the
+# archive's name is packaging, not what Pd looks for inside it.
+name="pdwclap-${version}-${platform}"
 stage="dist/${name}"
 
 # The external lands in the checkout root (see WCLAP_PD_OUTPUT_DIR), except
