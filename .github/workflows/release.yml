@@ -1,0 +1,116 @@
+name: Release
+
+# One zip per platform, each holding the built external plus the help patch
+# and the example plugins (see ci/package.sh). They are attached to the
+# published release; a manual run builds the same zips as workflow artifacts
+# so the packaging can be exercised without cutting a release, and attaches
+# them to a release when a tag is given.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to attach the zips to
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+env:
+  # Tag name for a release, the optional dispatch tag otherwise — empty in a
+  # plain dispatch, which ci/package.sh falls back to the commit hash for.
+  VERSION: ${{ github.event_name == 'release' && github.ref_name || inputs.tag }}
+
+jobs:
+  macos:
+    name: macOS (universal)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          cmake -B build -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+          cmake --build build --parallel
+      # The archive is advertised as universal, so check it really is: the
+      # per-architecture Wasmtime libs get lipo'd together regardless, and a
+      # missing -DCMAKE_OSX_ARCHITECTURES would still build (native only).
+      - name: Check the external is universal
+        run: |
+          lipo -info "wclap~.pd_darwin"
+          lipo -info "wclap~.pd_darwin" | grep -q "x86_64 arm64"
+      - name: Package
+        run: bash ci/package.sh macos-universal "wclap~.pd_darwin"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-universal
+          path: dist/*.zip
+          if-no-files-found: error
+
+  linux:
+    name: Linux (${{ matrix.arch }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-24.04
+            arch: x86_64
+          - runner: ubuntu-24.04-arm
+            arch: aarch64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          cmake -B build
+          cmake --build build --parallel
+      - name: Package
+        run: bash ci/package.sh "linux-${{ matrix.arch }}" "wclap~.pd_linux"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-${{ matrix.arch }}
+          path: dist/*.zip
+          if-no-files-found: error
+
+  windows:
+    name: Windows (x86_64)
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: |
+          cmake -B build -A x64
+          cmake --build build --config Release --parallel
+      - name: Package
+        shell: bash
+        # No vcvars needed for the Visual Studio generator, but it is a
+        # multi-config one, so the external lands in a per-config directory —
+        # find it rather than assume which. wasmtime.dll is copied next to it
+        # by CMakeLists.txt and Pd needs it there.
+        run: |
+          dll=$(find . -name 'wclap~.dll' -not -path './build/_deps/*' -print -quit)
+          bash ci/package.sh windows-x86_64 "$dll" "$(dirname "$dll")/wasmtime.dll"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-x86_64
+          path: dist/*.zip
+          if-no-files-found: error
+
+  release:
+    name: Attach zips to release
+    needs: [macos, linux, windows]
+    if: github.event_name == 'release' || inputs.tag != ''
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.event_name == 'release' && github.ref_name || inputs.tag }}
+        run: gh release upload "$TAG" dist/*.zip --clobber

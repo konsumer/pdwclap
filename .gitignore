@@ -8,6 +8,9 @@
 /build/
 /build-*/
 
+# Release archives staged by ci/package.sh.
+/dist/
+
 # Bundled test plugins (built by `make test-plugin`, needs wasi-sdk) and the
 # CLAP headers that script may cache.
 /tests/plugin/build/
