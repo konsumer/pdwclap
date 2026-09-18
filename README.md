@@ -9,7 +9,7 @@ This is the plugin-system I use in [poketrack](https://konsumer.js.org/poketrack
 [wclap~ /path/to/thing.wclap.wasm com.example.plugin-id]
 ```
 
-add `[wclap~]` to your puredata patch, then right-click & choose "help", for more info. You can also see some examples in `examples.pd` (use [plugdata](https://plugdata.org/), since it has extended stuff.)
+add `[wclap~]` to your puredata patch, then right-click & choose "help", for more info. You can also see some examples in `examples.pd` (use [plugdata](https://plugdata.org/), since it has extended stuff, like the keyboard.)
 
 ## Build
 
