@@ -2,7 +2,7 @@
 
 `wclap~` is a Puredata (or my preferred: [plugdata](https://plugdata.org/)) external that loads **WCLAP** plugins, which are CLAP plugins compiled to wasm32.
 
-This is the plugin-system I use in [poketrack](https://konsumer.js.org/poketrack/), so you can use the same plugins in both places, write them in any language (even pd) and they are sandboxed from the host system.
+This is the plugin-system I use in [poketrack](https://konsumer.js.org/poketrack/), so you can use the same plugins in both places, write them in any language (even pd) and they are sandboxed from the host system, and don't need to be recompiled for every host platform. This allows you to share the same compiled plugins with everyone, for easy use.
 
 ```
 [wclap~ /path/to/thing.wclap.wasm]
