@@ -110,6 +110,17 @@ target_include_directories(wclap PRIVATE
     ${clap_SOURCE_DIR}/include
     ${wclap-bridge_SOURCE_DIR}/include
 )
+# MSVC ships no pthread.h (see src/vendor/pthread-msvc for what the code
+# actually asks of pthread), so fall back to the vendored mutex-only shim
+# when the toolchain has none — a real pthreads install still wins.
+include(CheckIncludeFile)
+check_include_file(pthread.h HAVE_PTHREAD_H)
+if(NOT HAVE_PTHREAD_H)
+  message(STATUS "No pthread.h — using the vendored mutex shim")
+  target_sources(wclap PRIVATE src/vendor/pthread-msvc/pthread-msvc.c)
+  target_include_directories(wclap PRIVATE src/vendor/pthread-msvc)
+endif()
+
 target_link_libraries(wclap PRIVATE wclap-bridge)
 if(APPLE)
   # Pd's symbols are resolved when Pd dlopen()s the external.
@@ -119,6 +130,9 @@ if(WIN32)
   target_compile_definitions(wclap PRIVATE WIN32_LEAN_AND_MEAN)
   if(MSVC)
     target_link_options(wclap PRIVATE /FORCE:UNRESOLVED)
+    # The host core's event rings are stdatomic.h, which MSVC only has in
+    # its C11 mode (the default is pre-C11 MSVC C).
+    set_property(TARGET wclap PROPERTY C_STANDARD 11)
   endif()
 endif()
 
